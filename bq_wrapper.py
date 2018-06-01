@@ -1,3 +1,4 @@
+import datetime
 import traceback
 from logging import DEBUG, StreamHandler, getLogger
 
@@ -55,3 +56,18 @@ class BqWrapper(object):
     target_dates = proc(project_id, dataset_id, table_name, dialect)
     target_dates_ = sorted(target_dates, reverse=reverse)
     return target_dates_
+
+  def get_missed_dates_of_date_specified_table(self, start_date, end_date, **arguments):
+    dates = self.get_dates_of_date_specified_table(**arguments)
+
+    def daterange(start_date, end_date):
+      for n in range(int((end_date - start_date).days)):
+        yield start_date + datetime.timedelta(n)
+
+    start_date_ = datetime.datetime.strptime(start_date, '%Y%m%d')
+    start_date__ = datetime.date(start_date_.year, start_date_.month, start_date_.day)
+    end_date_ = datetime.datetime.strptime(end_date, '%Y%m%d')
+    end_date__ = datetime.date(end_date_.year, end_date_.month, end_date_.day)
+    comp_dates = [x.strftime("%Y%m%d") for x in daterange(start_date__, end_date__)]
+    ret = list(set(comp_dates) - set(dates))
+    return sorted(ret, reverse=False)
