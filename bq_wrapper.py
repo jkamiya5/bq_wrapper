@@ -32,13 +32,7 @@ class BqWrapper(object):
         for n in range(int((end_date - start_date).days)):
             yield start_date + datetime.timedelta(n)
 
-    def copy_table(self, start_date, end_date, from_source, destination_source):
-        def process(date, from_source, destination_source):
-            from_source_ = from_source + date
-            destination_source_ = destination_source + date
-            cmd = "bq cp -f " + from_source_ + " " + destination_source_
-            subprocess.call(cmd.split(" "))
-
+    def compare_dates(self, start_date, end_date):
         start_date_ = datetime.datetime.strptime(start_date, '%Y%m%d')
         start_date__ = datetime.date(
             start_date_.year, start_date_.month, start_date_.day)
@@ -47,6 +41,33 @@ class BqWrapper(object):
             end_date_.year, end_date_.month, end_date_.day)
         dates = [x.strftime("%Y%m%d")
                  for x in self.daterange(start_date__, end_date__)]
+        return dates
+
+    def copy_table(self, start_date, end_date, from_source, destination_source, missed_tables_only=False):
+        def process(date, from_source, destination_source):
+            from_source_ = from_source + date
+            destination_source_ = destination_source + date
+            cmd = "bq cp -f " + from_source_ + " " + destination_source_
+            subprocess.call(cmd.split(" "))
+
+        dates = None
+
+        if missed_tables_only:
+            d = destination_source.split(":")
+            project_id = d[0]
+            d2 = d[1].split(".")
+            dataset_id = d2[0]
+            table_name = d2[1][:-1]
+            print("project_id:" + str(project_id))
+            print("dataset_id:" + str(dataset_id))
+            print("table_name:" + str(table_name))
+            dates = self.get_missed_dates_of_date_specified_table(
+                start_date=start_date, end_date=end_date, project_id=project_id, dataset_id=dataset_id, table_name=table_name)
+        else:
+            dates = self.compare_dates(start_date, end_date)
+
+        logger.debug("target_dates")
+        logger.debug(dates)
 
         executer = ThreadPoolExecutor(max_workers=multiprocessing.cpu_count())
         futures = []
@@ -78,7 +99,7 @@ class BqWrapper(object):
                     """\
                     .format(table_name_=table_name_, year_prefix=year_prefix)
 
-                logger.debug(sql)
+                # logger.debug(sql)
                 df = pd.read_gbq(sql, project_id, dialect=dialect)
                 column_name_list = df.columns
                 result = list(df[column_name_list[0]])
@@ -93,13 +114,6 @@ class BqWrapper(object):
 
     def get_missed_dates_of_date_specified_table(self, start_date, end_date, **arguments):
         dates = self.get_dates_of_date_specified_table(**arguments)
-        start_date_ = datetime.datetime.strptime(start_date, '%Y%m%d')
-        start_date__ = datetime.date(
-            start_date_.year, start_date_.month, start_date_.day)
-        end_date_ = datetime.datetime.strptime(end_date, '%Y%m%d')
-        end_date__ = datetime.date(
-            end_date_.year, end_date_.month, end_date_.day)
-        comp_dates = [x.strftime("%Y%m%d")
-                      for x in self.daterange(start_date__, end_date__)]
+        comp_dates = self.compare_dates(start_date, end_date)
         ret = list(set(comp_dates) - set(dates))
         return sorted(ret, reverse=False)

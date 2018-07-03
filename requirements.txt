@@ -2,4 +2,5 @@ pandas
 google-api-python-client
 google
 google-cloud
+google-cloud-bigquery>=0.32.0
 pandas-gbq
